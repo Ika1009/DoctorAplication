@@ -52,15 +52,7 @@ We delivered:
 ## 💼 Project Status
 
 This project has been **successfully delivered to the Fiverr client** and is now listed as part of our portfolio.  
-We are proud to have completed all features as requested, and helped enhance the client’s application both visually and functionally.
-
----
-
-## 📁 Screenshots
-
-| Dashboard | Calendar |
-|----------|----------|
-| ![Dashboard](images/dashboard.png) | ![Calendar](images/calendar.png) |
+We are proud to have completed all features as requested and helped enhance the client’s application both visually and functionally.
 
 ---
 
@@ -72,5 +64,5 @@ We are proud to have completed all features as requested, and helped enhance the
 
 I'm Ilija — a professional .NET MAUI and cross-platform app developer with 6+ years of experience.  
 I help clients build beautiful and functional apps that solve real business problems.  
-[See more of my work →](https://fiverr.com/your-profile)
+[See more of my work →](https://fiverr.com/doncha_ilija)
 
