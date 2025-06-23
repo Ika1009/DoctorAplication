@@ -1,5 +1,10 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Maui.LifecycleEvents;
+using System.Runtime.InteropServices;
+using DoctorApp1.Services;
+using DoctorApp1.Views;
+
+
 #if WINDOWS
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
@@ -29,7 +34,7 @@ public static class MauiProgram
     {
         var builder = MauiApp.CreateBuilder();
         builder
-            .UseMauiApp<App>()
+            .UseMauiApp<App>()  // We will inject AppointmentNotificationService into App constructor
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("Inter-VariableFont.ttf", "InterRegular");
@@ -48,6 +53,25 @@ public static class MauiProgram
 
                         var mauiWinUIWindow = (Microsoft.UI.Xaml.Window)window;
                         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(mauiWinUIWindow);
+
+                        // Prevent double-click maximize on title bar (WM_NCLBUTTONDBLCLK)
+                        const int GWL_WNDPROC = -4;
+                        IntPtr originalWndProc = NativeMethods.GetWindowLongPtr(hwnd, GWL_WNDPROC);
+
+                        // Keep delegate in static field so it isn't GC'd
+                        NativeMethods.NewWndProcDelegate = (hWnd, msg, wParam, lParam) =>
+                        {
+                            const int WM_NCLBUTTONDBLCLK = 0x00A3;
+
+                            if (msg == WM_NCLBUTTONDBLCLK)
+                                return IntPtr.Zero; // Block maximize
+
+                            return NativeMethods.CallWindowProc(originalWndProc, hWnd, msg, wParam, lParam);
+                        };
+
+                        IntPtr newWndProcPtr = Marshal.GetFunctionPointerForDelegate(NativeMethods.NewWndProcDelegate);
+                        NativeMethods.SetWindowLongPtr(hwnd, GWL_WNDPROC, newWndProcPtr);
+
                         var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
                         var appWindow = AppWindow.GetFromWindowId(windowId);
 
@@ -170,6 +194,31 @@ public static class MauiProgram
         builder.Logging.AddDebug();
 #endif
 
+        // Register AppointmentNotificationService as singleton
+        builder.Services.AddSingleton<AppointmentNotificationService>();
+
+        // Register App for constructor injection of AppointmentNotificationService
+        builder.Services.AddSingleton<App>();
+
+        builder.Services.AddSingleton<AppointmentNotificationService>();
+        builder.Services.AddTransient<CalendarPage>();
         return builder.Build();
+    }
+
+    internal static class NativeMethods
+    {
+        public delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr")]
+        public static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+        [DllImport("user32.dll", EntryPoint = "GetWindowLongPtr")]
+        public static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
+
+        // Keep delegate reference to avoid GC
+        public static WndProcDelegate NewWndProcDelegate;
     }
 }

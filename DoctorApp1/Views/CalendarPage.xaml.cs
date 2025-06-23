@@ -5,11 +5,13 @@ using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.Shapes;
 using DoctorApp1.Models;
 using System.Collections.Generic;
+using DoctorApp1.Services;
 
 namespace DoctorApp1.Views
 {
     public partial class CalendarPage : ContentPage
     {
+        private readonly AppointmentNotificationService notificationService;
         public ObservableCollection<Appointment> Appointments { get; set; } = new();
         public ObservableCollection<Patient> Patients { get; set; } = new();
 
@@ -30,9 +32,10 @@ namespace DoctorApp1.Views
         public List<int> Years { get; } =
             Enumerable.Range(DateTime.Today.Year - 10, 21).ToList();
 
-        public CalendarPage()
+        public CalendarPage(AppointmentNotificationService notificationService)
         {
             InitializeComponent();
+            this.notificationService = notificationService;
 
             MonthPicker.ItemsSource = Months;
             YearPicker.ItemsSource = Years;
@@ -490,18 +493,10 @@ namespace DoctorApp1.Views
                     Notes = NotesEditor.Text
                 };
 
-                int newAppointmentId = App.Database.AddAppointment(appointment);
-                appointment.AppointmentID = newAppointmentId;
+                App.Database.AddAppointment(appointment);
+                Appointments.Add(appointment);
 
-                // Schedule notification
-#if WINDOWS
-                var notificationId = $"appt_{appointment.AppointmentID}";
-                DoctorApp1.Platforms.Windows.NotificationService.ScheduleToast(
-                    notificationId,
-                    "Appointment Reminder",
-                    $"You have an appointment with {selectedPatient.FullName} at {appointment.StartTime:HH:mm}.",
-                    appointment.StartTime.AddMinutes(-10)); // Notify 10 mins before
-#endif
+                notificationService.ScheduleNotification(appointment, selectedPatient);
             }
             else
             {
@@ -509,18 +504,9 @@ namespace DoctorApp1.Views
                 editingAppointment.StartTime = DatePicker.Date.Add(StartTimePicker.Time);
                 editingAppointment.EndTime = DatePicker.Date.Add(EndTimePicker.Time);
                 editingAppointment.Notes = NotesEditor.Text;
-
                 App.Database.UpdateAppointment(editingAppointment);
 
-                // Update notification
-#if WINDOWS
-                var notificationId = $"appt_{editingAppointment.AppointmentID}";
-                DoctorApp1.Platforms.Windows.NotificationService.ScheduleToast(
-                    notificationId,
-                    "Appointment Reminder",
-                    $"You have an appointment with {selectedPatient.FullName} at {editingAppointment.StartTime:HH:mm}.",
-                    editingAppointment.StartTime.AddMinutes(-10));
-#endif
+                notificationService.RescheduleNotification(editingAppointment, selectedPatient);
             }
 
             ReloadAppointments();
@@ -532,17 +518,15 @@ namespace DoctorApp1.Views
                 LoadCalendarWeeks(SelectedMonth.Year, SelectedMonth.Month);
         }
 
+
         void OnDeleteModal(object sender, EventArgs e)
         {
             if (editingAppointment != null)
             {
                 App.Database.DeleteAppointment(editingAppointment);
+                Appointments.Remove(editingAppointment);
 
-                // Remove notification
-#if WINDOWS
-                var notificationId = $"appt_{editingAppointment.AppointmentID}";
-                DoctorApp1.Platforms.Windows.NotificationService.RemoveScheduledToast(notificationId);
-#endif
+                notificationService.CancelNotification(editingAppointment.AppointmentID);
 
                 ReloadAppointments();
                 AppointmentModal.IsVisible = false;
@@ -553,6 +537,7 @@ namespace DoctorApp1.Views
                     LoadCalendarWeeks(SelectedMonth.Year, SelectedMonth.Month);
             }
         }
+
 
         private void OnRadioButtonCheckedChanged(object sender, CheckedChangedEventArgs e)
         {
